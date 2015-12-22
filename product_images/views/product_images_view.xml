@@ -36,6 +36,7 @@
             <field name="model">product.images</field>
             <field name="arch" type="xml">
                 <tree string="Product Images">
+                    <field name="file" widget="image"/>
                     <field name="name" select="1" />
                     <field name="comments" select="2" />
                 </tree>

@@ -35,6 +35,7 @@ the upcoming e-commerce system for Open ERP by Open Labs
     """,
     "data": [
         'security/ir.model.access.csv',
+        'data/data.xml',
         'views/product_images_view.xml',
         'views/company_view.xml'
     ],
