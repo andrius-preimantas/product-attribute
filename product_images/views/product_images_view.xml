@@ -54,5 +54,20 @@
                 </xpath>
             </field>
         </record>
+
+        <record id="product_template_only_form_view" model="ir.ui.view">
+            <field name="name">product.template.product.form</field>
+            <field name="model">product.template</field>
+            <field name="inherit_id" ref="product.product_template_only_form_view"/>
+            <field name="arch" type="xml">
+                <page name="variants" position="after">
+                    <page name="images" string="Images">
+                        <field name="image_ids" attrs="{'invisible': [('product_variant_count', '&gt;', 1)]}"/>
+                        <label string="This product has multiple variants therefore images are handled on each of them individually." attrs="{'invisible': [('product_variant_count', '&lt;=', 1)]}"/>
+                    </page>
+                </page>
+            </field>
+        </record>
+
     </data>
 </openerp>

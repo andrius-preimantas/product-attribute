@@ -109,3 +109,8 @@ class ProductProduct(models.Model):
         self.env['product.images'].create(data)
         return True
 
+
+class ProductTemplate(models.Model):
+    _inherit = 'product.template'
+
+    image_ids = fields.One2many(related='product_variant_ids.image_ids')
