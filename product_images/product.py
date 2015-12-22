@@ -22,23 +22,26 @@ import logging
 import base64
 import urllib
 
-from openerp.osv import orm, fields
+from openerp import models, fields, api, exceptions
 
 
-class product_product(orm.Model):
+class ProductProduct(models.Model):
     _inherit = "product.product"
 
+    @api.returns('self', lambda value: value.id)
     def copy(self, cr, uid, id, default=None, context=None):
         if not default:
             default = {}
-        original = self.read(cr, uid, id, fields=['default_code', 'image_ids'], context=context)
+        original = self.read(fields=['default_code', 'image_ids'])
         default.update({
             'image_ids': False,
         })
-        local_media_repository = self.pool.get('res.company').get_local_media_repository(cr, uid, context=context)
+        local_media_repository = self.env[
+            'res.company'].get_local_media_repository()
         if local_media_repository:
             if original['image_ids']:
-                old_path = os.path.join(local_media_repository, original['default_code'])
+                old_path = os.path.join(
+                    local_media_repository, original['default_code'])
                 if os.path.isdir(old_path):
                     try:
                         shutil.copytree(old_path, old_path + '-copy')
@@ -49,57 +52,50 @@ class product_product(orm.Model):
                                          old_path,
                                          old_path + '.copy')
 
-        return super(product_product, self).copy(cr, uid, id, default, context=context)
+        return super(ProductProduct, self).copy(
+            cr, uid, id, default, context=context)
 
-    def get_main_image(self, cr, uid, id, context=None):
-        if isinstance(id, list):
-            id = id[0]
-        images_ids = self.read(cr, uid, id, ['image_ids'], context=context)['image_ids']
-        if images_ids:
-            return images_ids[0]
-        return False
+    def get_main_image(self):
+        self.ensure_one()
+        return self.images_ids and self.image_ids[0] or False
 
-    def _get_main_image(self, cr, uid, ids, field_name, arg, context=None):
-        res = {}
-        img_obj = self.pool.get('product.images')
-        for id in ids:
-            image_id = self.get_main_image(cr, uid, id, context=context)
-            if image_id:
-                image = img_obj.browse(cr, uid, image_id, context=context)
-                res[id] = image.file
-            else:
-                res[id] = False
-        return res
+    @api.depends('image_ids')
+    def _get_main_image(self):
+        for record in self:
+            image = record.get_main_image()
+            record.product_image = image and image.file or False
 
-    _columns = {
-        'image_ids': fields.one2many(
-                'product.images',
-                'product_id',
-                string='Product Images'),
-        'product_image': fields.function(
-            _get_main_image,
-            type="binary",
-            string="Main Image"),
-    }
+    image_ids = fields.One2many(
+        'product.images', 'product_id', string="Product Images")
+    product_image = fields.Binary(
+        compute='_get_main_image', string="Main Image")
 
-    def write(self, cr, uid, ids, vals, context=None):
-        if isinstance(ids, (int, long)):
-            ids = [ids]
-        # here we expect that the write on default_code is always on 1 product because there is an unique constraint on the default code
-        if vals.get('default_code') and ids:
-            local_media_repository = self.pool.get('res.company').get_local_media_repository(cr, uid, context=context)
-            if local_media_repository:
-                old_product = self.read(cr, uid, ids[0], ['default_code', 'image_ids'], context=context)
-                res = super(product_product, self).write(cr, uid, ids, vals, context=context)
-                if old_product['image_ids']:
-                    if old_product['default_code'] != vals['default_code']:
-                        old_path = os.path.join(local_media_repository, old_product['default_code'])
-                        if os.path.isdir(old_path):
-                            os.rename(old_path,  os.path.join(local_media_repository, vals['default_code']))
-                return res
-        return super(product_product, self).write(cr, uid, ids, vals, context=context)
+    @api.multi
+    def write(self, vals):
+        # there's no constrain on unique default code anymore
+        local_media_repository = self.env[
+            'res.company'].get_local_media_repository()
+        images = self.mapped('image_ids')
 
-    def create_image_from_url(self, cr, uid, id, url, image_name=None, context=None):
+        # when changing default code we need to move images in local repo
+        if 'default_code' in vals and images and local_media_repository:
+            if len(self) != 1:
+                raise exceptions.Warning(
+                    "Unable to set same Internal Reference code for multiple "
+                    "products because Product images are named and saved "
+                    "locally based on Product Code!")
+            if vals['default_code'] != self.default_code:
+                old_path = os.path.join(
+                    local_media_repository, self.default_code)
+                if os.path.isdir(old_path):
+                    os.rename(old_path, os.path.join(local_media_repository,
+                              vals['default_code']))
+
+        return super(ProductProduct, self).write(vals)
+
+    @api.multi
+    def create_image_from_url(self, url, image_name=None):
+        self.ensure_one()
         (filename, header) = urllib.urlretrieve(url)
         with open(filename, 'rb') as f:
             data = f.read()
@@ -108,7 +104,8 @@ class product_product(orm.Model):
         data = {'name': image_name or filename,
                 'extension': extension,
                 'file': img,
-                'product_id': id,
+                'product_id': self.id,
                 }
-        new_image_id = self.pool.get('product.images').create(cr, uid, data, context=context)
+        self.env['product.images'].create(data)
         return True
+
