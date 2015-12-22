@@ -25,7 +25,7 @@
     "website" : "http://openlabs.co.in/",
     "license": "GPL-2 or any later version",
     "category" : "Generic Modules",
-    "depends" : ['product_sequence'],
+    "depends" : ['product'],
     "description": """
 This Module implements an Image Gallery for products.
 You can add images to every product.
@@ -38,7 +38,7 @@ the upcoming e-commerce system for Open ERP by Open Labs
         'views/product_images_view.xml',
         'views/company_view.xml'
     ],
-    'installable': False,
+    'installable': True,
     "active": False,
 }
 # vim:expandtab:smartindent:tabstop=4:softtabstop=4:shiftwidth=4:
