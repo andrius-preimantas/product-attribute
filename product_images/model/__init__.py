@@ -16,4 +16,6 @@
 #along with this program.  If not, see <http://www.gnu.org/licenses/>.  #
 #########################################################################
 
-from . import model
+from . import product_images
+from . import product
+from . import company

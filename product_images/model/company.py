@@ -17,25 +17,20 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 ##############################################################################
+from openerp import models, fields, api
 
-from openerp.osv import orm, fields
 
-
-class ResCompany(orm.Model):
+class ResCompany(models.Model):
     """Override company to add images configuration"""
     _inherit = "res.company"
-    _columns = {
-        'local_media_repository': fields.char(
-            'Images Repository Path',
-            help='Local directory on the OpenERP server '
-                 'where all images are stored.'),
-        }
 
-    def get_local_media_repository(self, cr, uid, id=None, context=None):
-        if isinstance(id, (tuple, list)):
-            assert len(id) == 1, "One ID expected"
-            id = id[0]
+    local_media_repository = fields.Char(
+        "Images Repository Path",
+        help="Local directory on the OpenERP server where all images are "
+        "stored.")
+
+    @api.model
+    def get_local_media_repository(self, id=None):
         if id:
-            return self.browse(cr, uid, id, context=context).local_media_repository
-        user = self.pool.get('res.users').browse(cr, uid, uid, context=context)
-        return user.company_id.local_media_repository
+            return self.browse(id).local_media_repository
+        return self.env.user.company_id.local_media_repository
