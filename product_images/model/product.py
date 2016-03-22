@@ -57,7 +57,7 @@ class ProductProduct(models.Model):
 
     def get_main_image(self):
         self.ensure_one()
-        return self.images_ids and self.image_ids[0] or False
+        return self.image_ids and self.image_ids[0] or False
 
     @api.depends('image_ids')
     def _get_main_image(self):
