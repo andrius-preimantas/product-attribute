@@ -8,10 +8,11 @@
                 <form string="Product Images">
                     <notebook colspan="4">
                         <page string="Image">
-                            <group col="6" colspan="4">
+                            <group col="8" colspan="4">
                                 <field name="name" colspan="2" />
                                 <field name="extension" colspan="2" />
                                 <field name="link" colspan="2" />
+                                <field name="sequence" colspan="2" />
                             </group>
                             <group attrs="{'invisible': [('link', '=', False)]}" colspan="4">
                                 <field name="url" colspan="4" widget="url"/>
@@ -36,6 +37,7 @@
             <field name="model">product.images</field>
             <field name="arch" type="xml">
                 <tree string="Product Images">
+                    <field name="sequence" invisible="1"/>
                     <field name="file" widget="image"/>
                     <field name="name" select="1" />
                     <field name="comments" select="2" />

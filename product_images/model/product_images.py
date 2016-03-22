@@ -34,6 +34,7 @@ _logger = logging.getLogger(__name__)
 class product_images(orm.Model):
     "Products Image gallery"
     _name = "product.images"
+    _order = 'sequence, id'
     _description = __doc__
 
     def unlink(self, cr, uid, ids, context=None):
@@ -176,11 +177,13 @@ class product_images(orm.Model):
                                 filters='*.png,*.jpg,*.gif'),
         'url': fields.char('File Location'),
         'comments': fields.text('Comments'),
-        'product_id': fields.many2one('product.product', 'Product')
+        'product_id': fields.many2one('product.product', 'Product'),
+        'sequence': fields.integer(),
         }
 
     _defaults = {
         'link': False,
+        'sequence': 10,
         }
 
     _sql_constraints = [('uniq_name_product_id',
