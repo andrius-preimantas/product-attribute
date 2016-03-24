@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # This file is part of OpenERP. The COPYRIGHT file at the top level of
 # this module contains the full copyright notices and license terms.
-from openerp import models, fields, api, tools
+from openerp import models, fields, api, tools, exceptions
 import PIL
 import cStringIO
 import base64
@@ -11,18 +11,18 @@ class ProductProduct(models.Model):
     _inherit = "product.product"
 
     @api.multi
-    @api.depends('image_ids', 'image_ids.file')
+    @api.depends('image_ids', 'image_ids.file', 'image_ids.sequence')
     def _get_variant_images(self):
         for each in self:
             res = {'image': None, 'image_small': None, 'image_medium': None}
+            image = each.product_image
             if self.env.context.get('bin_size'):
-                res['image'] = each.image_variant
-                res['image_small'] = each.image_variant
-                res['image_medium'] = each.image_variant
+                res['image'] = image
+                res['image_small'] = image
+                res['image_medium'] = image
             else:
                 res = tools.image_get_resized_images(
-                    each.image_variant, return_big=True,
-                    avoid_resize_medium=True)
+                    image, return_big=True, avoid_resize_medium=True)
             each.image = res['image']
             each.image_medium = res['image_medium']
             each.image_small = res['image_small']
@@ -32,10 +32,20 @@ class ProductProduct(models.Model):
         for each in self:
             image_data = getattr(each, field_to_read)
             image = tools.image_resize_image_big(image_data)
-            if each.product_tmpl_id.image:
-                each.image_variant = image
+            image_current = each.product_variant_ids[0].get_main_image()
+            image_name = (
+                (image_current and image_current.name) or
+                each.image_name or
+                'Main image.' + self.product_tmpl_id.guess_image_type(image)
+            )
+            if image_current:
+                image_current.write({'file': image, 'name': image_name})
             else:
-                each.product_tmpl_id.image = image
+                each.product_variant_ids[0].write(
+                    {'image_ids': [
+                        (0, 0, {'name': image_name, 'file': image})
+                    ]}
+                )
 
     @api.multi
     def _set_variant_image(self):
@@ -49,43 +59,24 @@ class ProductProduct(models.Model):
     def _set_variant_image_medium(self):
         self.set_variant_image('image_medium')
 
-    @api.multi
-    def _get_image_variant(self):
-        for each in self:
-            each.image_variant = each.product_image
-
-    @api.multi
-    def _set_image_variant(self):
-        for each in self:
-            default_image_name = each.image_name or (
-                'Main image.' + each.guess_image_type(each.image_variant))
-            main_image = each.get_main_image()
-            if main_image:
-                main_image.file = each.image_variant
-            else:
-                data = {'file': each.image_variant, 'name': default_image_name}
-                each.write({'image_ids': [(0, 0, data)]})
-                each.image_variant = each.product_image
-
     image_variant = fields.Binary(
-        string="Variant Image", compute="_get_image_variant",
-        inverse="_set_image_variant", store=True,
+        related="product_tmpl_id.image", store=True,
         help="This field holds the image used as image for the product "
         "variant, limited to 1024x1024px.")
     image = fields.Binary(
         string="Big-sized image", compute='_get_variant_images',
-        inverse='_set_variant_image', store=True,
+        inverse='_set_variant_image',
         help="Image of the product variant (Big-sized image of product "
         "template if false). It is automatically resized as a 1024x1024px "
         "image, with aspect ratio preserved.")
     image_small = fields.Binary(
         string="Small-sized image", compute='_get_variant_images',
-        inverse='_set_variant_image_small', store=True,
+        inverse='_set_variant_image_small',
         help="Image of the product variant (Small-sized image of product "
         "template if false).")
     image_medium = fields.Binary(
-        compute='_get_variant_images', string="Medium-sized image",
-        inverse='_set_variant_image_medium', store=True,
+        string="Medium-sized image", compute='_get_variant_images',
+        inverse='_set_variant_image_medium',
         help="Image of the product variant (Medium-sized image of product "
         "template if false).")
 
@@ -95,7 +86,8 @@ class ProductTemplate(models.Model):
 
     @api.multi
     @api.depends('product_variant_ids.image_ids',
-                 'product_variant_ids.image_ids.file')
+                 'product_variant_ids.image_ids.file',
+                 'product_variant_ids.image_ids.sequence')
     def _get_images(self):
         for each in self:
             res = {'image': None, 'image_small': None, 'image_medium': None}
@@ -115,30 +107,40 @@ class ProductTemplate(models.Model):
         return image.format
 
     @api.multi
-    def _set_image(self):
+    def save_image(self, field_to_read):
         for each in self:
-            image = each.product_variant_ids[0].get_main_image()
-            default_image_name = each.image_name or (
-                'Main image.' + self.guess_image_type(each.image))
-            if image:
-                image.name = default_image_name
-                image.file = each.image
+            image_data = getattr(each, field_to_read)
+            image_current = each.product_variant_ids[0].get_main_image()
+            if image_current and not image_data:
+                raise exceptions.Warning(
+                    "Unable to remove image. Please delete all images "
+                    "from Images tab first.")
+            image = tools.image_resize_image_big(image_data)
+            image_name = (
+                each.image_name or
+                (image_current and image_current.name) or
+                'Main image.' + self.guess_image_type(image)
+            )
+            if image_current:
+                image_current.write({'file': image, 'name': image_name})
             else:
-                image_ids = [
-                    (0, 0, {'name': default_image_name, 'file': each.image})
-                ]
                 each.product_variant_ids[0].write(
-                    {'image_ids': image_ids})
+                    {'image_ids': [
+                        (0, 0, {'name': image_name, 'file': image})
+                    ]}
+                )
+
+    @api.multi
+    def _set_image(self):
+        self.save_image('image')
 
     @api.multi
     def _set_image_small(self):
-        for each in self:
-            each.image = tools.image_resize_image_big(each.image_small)
+        self.save_image('image_small')
 
     @api.multi
     def _set_image_medium(self):
-        for each in self:
-            each.image = tools.image_resize_image_big(each.image_medium)
+        self.save_image('image_medium')
 
     image_name = fields.Char()
     image = fields.Binary(
