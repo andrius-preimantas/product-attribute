@@ -32,7 +32,7 @@ class ProductProduct(models.Model):
         for each in self:
             image_data = getattr(each, field_to_read)
             image = tools.image_resize_image_big(image_data)
-            image_current = each.product_variant_ids[0].get_main_image()
+            image_current = each.get_main_image()
             image_name = (
                 (image_current and image_current.name) or
                 each.image_name or
@@ -41,7 +41,7 @@ class ProductProduct(models.Model):
             if image_current:
                 image_current.write({'file': image, 'name': image_name})
             else:
-                each.product_variant_ids[0].write(
+                each.write(
                     {'image_ids': [
                         (0, 0, {'name': image_name, 'file': image})
                     ]}
@@ -106,56 +106,46 @@ class ProductTemplate(models.Model):
         image = PIL.Image.open(cStringIO.StringIO(string_data))
         return image.format
 
-    @api.multi
-    def save_image(self, field_to_read):
-        for each in self:
-            image_data = getattr(each, field_to_read)
-            image_current = each.product_variant_ids[0].get_main_image()
-            if image_current and not image_data:
-                raise exceptions.Warning(
-                    "Unable to remove image. Please delete all images "
-                    "from Images tab first.")
-            image = tools.image_resize_image_big(image_data)
-            image_name = (
-                each.image_name or
-                (image_current and image_current.name) or
-                'Main image.' + self.guess_image_type(image)
-            )
-            if image_current:
-                image_current.write({'file': image, 'name': image_name})
-            else:
-                each.product_variant_ids[0].write(
-                    {'image_ids': [
-                        (0, 0, {'name': image_name, 'file': image})
-                    ]}
-                )
+    def write_images(self, vals):
+        if self.product_variant_ids:
+            if vals.get('image'):
+                self.product_variant_ids[0].write(
+                    {'image': vals['image']})
+            elif vals.get('image_medium'):
+                self.product_variant_ids[0].write(
+                    {'image_medium': vals['image_medium']})
+            elif vals.get('image_small'):
+                self.product_variant_ids[0].write(
+                    {'image_small': vals['image_small']})
+
+    @api.model
+    @api.returns('self', lambda value: value.id)
+    def create(self, vals):
+        to_ret = super(ProductTemplate, self).create(vals)
+        if "create_product_product" not in self.env.context:
+            to_ret.write_images(vals)
+        return to_ret
 
     @api.multi
-    def _set_image(self):
-        self.save_image('image')
-
-    @api.multi
-    def _set_image_small(self):
-        self.save_image('image_small')
-
-    @api.multi
-    def _set_image_medium(self):
-        self.save_image('image_medium')
+    def write(self, vals):
+        to_ret = super(ProductTemplate, self).write(vals)
+        self.write_images(vals)
+        return to_ret
 
     image_name = fields.Char()
     image = fields.Binary(
-        compute='_get_images', inverse='_set_image', store=True,
+        compute='_get_images', store=True,
         help="This field holds the image used as image for the product, "
         "limited to 1024x1024px.")
     image_small = fields.Binary(
-        compute='_get_images', inverse='_set_image_small',
-        string="Small-sized image", store=True,
+        compute='_get_images', store=True,
+        string="Small-sized image",
         help="Small-sized image of the product. It is automatically "
              "resized as a 64x64px image, with aspect ratio preserved. "
              "Use this field anywhere a small image is required.")
     image_medium = fields.Binary(
-        compute='_get_images', inverse='_set_image_medium',
-        string="Medium-sized image", store=True,
+        compute='_get_images', store=True,
+        string="Medium-sized image",
         help="Medium-sized image of the product. It is automatically "
              "resized as a 128x128px image, with aspect ratio preserved, "
              "only when the image exceeds one of those sizes. Use this field "
