@@ -106,17 +106,19 @@ class ProductTemplate(models.Model):
         image = PIL.Image.open(cStringIO.StringIO(string_data))
         return image.format
 
+    @api.multi
     def write_images(self, vals):
-        if self.product_variant_ids:
-            if vals.get('image'):
-                self.product_variant_ids[0].write(
-                    {'image': vals['image']})
-            elif vals.get('image_medium'):
-                self.product_variant_ids[0].write(
-                    {'image_medium': vals['image_medium']})
-            elif vals.get('image_small'):
-                self.product_variant_ids[0].write(
-                    {'image_small': vals['image_small']})
+        for each in self:
+            if each.product_variant_ids:
+                if vals.get('image'):
+                    each.product_variant_ids[0].write(
+                        {'image': vals['image']})
+                elif vals.get('image_medium'):
+                    each.product_variant_ids[0].write(
+                        {'image_medium': vals['image_medium']})
+                elif vals.get('image_small'):
+                    each.product_variant_ids[0].write(
+                        {'image_small': vals['image_small']})
 
     @api.model
     @api.returns('self', lambda value: value.id)
