@@ -98,7 +98,7 @@ class ProductTemplate(models.Model):
     def _get_images(self):
         for each in self:
             res = {'image': None, 'image_small': None, 'image_medium': None}
-            if each.image_ids:
+            if each.image_ids and each.image_ids[0].file:
                 res = tools.image_get_resized_images(
                     each.image_ids[0].file, avoid_resize_medium=True)
                 res['image'] = each.image_ids[0].file
