@@ -17,12 +17,14 @@ class ProductProduct(models.Model):
             res = {'image': None, 'image_small': None, 'image_medium': None}
             image = each.product_image
             if self.env.context.get('bin_size'):
+                res['image_variant'] = image
                 res['image'] = image
                 res['image_small'] = image
                 res['image_medium'] = image
             else:
                 res = tools.image_get_resized_images(
                     image, return_big=True, avoid_resize_medium=True)
+            each.image_variant = res['image']
             each.image = res['image']
             each.image_medium = res['image_medium']
             each.image_small = res['image_small']
@@ -48,6 +50,10 @@ class ProductProduct(models.Model):
                 )
 
     @api.multi
+    def _set_image_variant(self):
+        self.set_variant_image('image_variant')
+
+    @api.multi
     def _set_variant_image(self):
         self.set_variant_image('image')
 
@@ -60,7 +66,8 @@ class ProductProduct(models.Model):
         self.set_variant_image('image_medium')
 
     image_variant = fields.Binary(
-        related="product_tmpl_id.image", store=True,
+        compute='_get_variant_images', inverse='_set_image_variant',
+        store=True,
         help="This field holds the image used as image for the product "
         "variant, limited to 1024x1024px.")
     image = fields.Binary(
